@@ -1,23 +1,29 @@
-#include "Arduino.h"
-#include "main.h"
+#include <Arduino.h>
+
+#define BUTTON_PIN 36
+
+hw_timer_t *timer = NULL;
+
+bool debounce() {
+	static uint16_t state = 0;
+	state = (state << 1) | digitalRead(BUTTON_PIN) | 1 << 15;
+	return (state == 3 << 14);
+}
 
 void setup()
 {
-  // initialize LED digital pin as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
+	Serial.begin(9600);
+	pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+	timer = timerBegin(0, 80, true);
 }
 
-void loop()
-{
-  // turn the LED on (HIGH is the voltage level)
-  digitalWrite(LED_BUILTIN, HIGH);
-
-  // wait for a second
-  delay(1000);
-
-  // turn the LED off by making the voltage LOW
-  digitalWrite(LED_BUILTIN, LOW);
-
-   // wait for a second
-  delay(1000);
+void loop() {
+	if (debounce()) {
+		Serial.println("pressed");
+	}
+	uint64_t count;
+	gptimer_get_raw_count(gptimer, &count);
+	Serial.println(count)
+	delay(1);
 }
