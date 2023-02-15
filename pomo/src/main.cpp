@@ -1,6 +1,5 @@
 #include <Arduino.h>
 
-#define BUTTON_PIN 18
 #define MS_IN_MINUTE 1000 * 60
 #define DO_DURATION 2
 #define STOP_DURATION 1
@@ -8,6 +7,7 @@
 #define PAUSE_FLASH_DELAY 1000
 #define DISPLAY_MODE_TIME 2000
 
+#define BUTTON_PIN 18
 #define DATA_PIN 15
 #define LATCH_PIN 16
 #define CLOCK_PIN 17
@@ -16,7 +16,7 @@
 /* #define CLOCK_PIN 4 */
 
 
-enum modes { Do = 2, Stop = 1, Nothing = 0};
+enum modes { Do = 25, Stop = 5, Nothing = 0};
 enum modes mode = Nothing;
 uint32_t startTime;
 uint32_t lastPressed = 0;
@@ -35,16 +35,9 @@ uint32_t convertToMillis(uint8_t minutes) {
 }
 
 bool pressed() {
-	static uint8_t state = 0;
-	state = (state << 1) | digitalRead(BUTTON_PIN) | 1 << 7;
-	return (state == 3 << 6);
-}
-
-void doPause(uint32_t duration, bool flash) {
-	Serial.println("Paused");
-	pauseTime = duration;
-	durationAtPauseStart = millis() - startTime;
-	pauseFlash = flash;
+	static uint16_t state = 0;
+	state = (state << 1) | digitalRead(BUTTON_PIN) | 1 << 15;
+	return (state == 3 << 14);
 }
 
 void displayWrite(uint16_t data) { // registerWrite
@@ -57,6 +50,17 @@ void displayWrite(uint16_t data) { // registerWrite
 	digitalWrite(LATCH_PIN, HIGH);
 }
 
+void doPause(uint32_t duration, bool flash) {
+	if (duration == 0) {
+		Serial.println("Unpaused");
+	} else {
+		Serial.println("Paused");
+	}
+	pauseTime = duration;
+	durationAtPauseStart = millis() - startTime;
+	pauseFlash = flash;
+}
+
 void displayMode() {
 	Serial.println(mode);
 	displayWrite(mode);
@@ -64,9 +68,8 @@ void displayMode() {
 }
 
 void handlePress() {
-	if (!pressed())
 	Serial.println("Pressed");
-	if (lastPressed == 0 || millis() - lastPressed < DOUBLE_CLICK_THRESHOLD) {
+	if (millis() - lastPressed < DOUBLE_CLICK_THRESHOLD) {
 		mode = nextMode();
 		startTime = millis();
 		if (mode == Nothing) {
@@ -75,8 +78,13 @@ void handlePress() {
 		} else {
 			displayMode();
 		}
-	} else {
+	} else if (millis() - lastPressed > 100) {
 		doPause(pauseTime ? 0 : UINT32_MAX, true);
+		if (pauseTime == 0) {
+			Serial.println("Displaying mode");
+			displayMode();
+			startTime = millis() - durationAtPauseStart;
+		}
 	}
 	lastPressed = millis();
 }
@@ -105,9 +113,8 @@ void updateDisplay() {
 		if (mode == Nothing) {
 			mode = Do;
 		}
-		startTime = millis();
-		displayMode();
 		doPause(UINT32_MAX, true);
+		durationAtPauseStart = 0;
 	}
 }
 
@@ -126,6 +133,12 @@ void loop() {
 	if (pressed()) {
 		handlePress();
 	}
+
+	/* if (millis() - lastPressed >= DOUBLE_CLICK_THRESHOLD) { */
+	/* 	if (pauseTime == 0) { */
+	/* 		displayMode(); */
+	/* 	} */
+	/* } */
 
 	if (pauseTime > 0) {
 		handlePause();
