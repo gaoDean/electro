@@ -5,9 +5,8 @@
 #define DO_DURATION 2
 #define STOP_DURATION 1
 #define DOUBLE_CLICK_THRESHOLD 500
-#define PAUSE_FRAME_DELAY 50
+#define PAUSE_FLASH_DELAY 1000
 #define DISPLAY_MODE_TIME 2000
-#define FLASH_DELAY 500
 
 #define BUTTON_PIN 18
 #define DATA_PIN 15
@@ -20,14 +19,13 @@
 
 enum modes { Do = 25, Stop = 5, Nothing = 0};
 enum modes mode = Nothing;
-
+uint32_t startTime;
 uint32_t lastPressed = 0;
-uint32_t lastFlash = 0;
-uint32_t pauseDuration = UINT32_MAX;
-uint32_t lastPauseFrameUpdate = 0;
-uint16_t animation = 0;
-bool userPause = false;
-bool lastFlashState = false;
+uint32_t lastPauseFlash = 0;
+uint32_t durationAtPauseStart;
+uint32_t pauseTime = false;
+bool pauseFlashState = false;
+bool pauseFlash = true;
 
 enum modes nextMode() {
 	return mode == Nothing ? Do : (mode == Do ? Stop : Nothing);
@@ -53,70 +51,72 @@ void displayWrite(uint16_t data) { // registerWrite
 	digitalWrite(LATCH_PIN, HIGH);
 }
 
+void doPause(uint32_t duration, bool flash) {
+	if (duration == 0) {
+		Serial.println("Unpaused");
+	} else {
+		Serial.println("Paused");
+	}
+	pauseTime = duration;
+	durationAtPauseStart = millis() - startTime;
+	pauseFlash = flash;
+}
+
 void displayMode() {
-	Serial.print("Mode is now ");
 	Serial.println(mode);
-
 	displayWrite(mode);
-
-	pauseDuration = DISPLAY_MODE_TIME;
-	pauseTimer();
+	doPause(DISPLAY_MODE_TIME, false);
 }
 
 void handlePress() {
+	Serial.println("Pressed");
 	if (millis() - lastPressed < DOUBLE_CLICK_THRESHOLD) {
 		mode = nextMode();
-		resetTimer();
-		unpauseTimer();
-		displayMode();
-	} else {
-		if (timerPaused()) {
-			unpauseTimer();
-			displayMode();
+		startTime = millis();
+		if (mode == Nothing) {
+			doPause(0, false);
+			displayWrite(0);
 		} else {
-			pauseTimer();
+			displayMode();
+		}
+	} else {
+		doPause(pauseTime ? 0 : UINT32_MAX, true);
+		if (pauseTime == 0) {
+			Serial.println("Displaying mode");
+			displayMode();
+			startTime = millis() - durationAtPauseStart;
 		}
 	}
 	lastPressed = millis();
 }
 
-void animatePause() {
-	if (userPause && millis() - lastPauseFrameUpdate > PAUSE_FRAME_DELAY) {
-		animation = animation << 1;
-
-		switch (animation) {
-			case 0:
-				animation = 0b1;
-			break;
-			case 0b10:
-				animation = 0b11;
-			break;
-			case 0b110:
-				animation = 0b111;
-			break;
-		}
-
-		displayWrite(animation);
-
-		lastPauseFrameUpdate = millis();
+void handlePause() {
+	if (millis() - startTime > pauseTime) {
+		startTime = millis() - durationAtPauseStart;
+		pauseTime = 0;
+		Serial.println("Unpaused");
+	}
+	if (pauseFlash && millis() - lastPauseFlash > PAUSE_FLASH_DELAY) {
+		pauseFlashState = !pauseFlashState;
+		displayWrite(pauseFlashState ? 0xFFFFFFFF : 0);
+		lastPauseFlash = millis();
 	}
 }
 
 void updateDisplay() {
-	uint8_t numBitsToFill = 10 * (millis() - getTimerStart()) / convertToMillis(mode);
+	uint8_t numBitsToFill = (10 * ((millis() - startTime)) / convertToMillis(mode));
 	uint16_t bitRepresentation = pow(2, numBitsToFill) - 1;
-
-	if (millis() - lastFlash > FRAME_DELAY) {
-		lastFlashState = !lastFlashState;
-
-		if (lastFlashState) {
-			bitRepresentation &= 1 << numBitsToFill;
-		}
-
-		lastFlash = millis();
-	}
-
 	displayWrite(bitRepresentation);
+
+	if (millis() - startTime > convertToMillis(mode)) {
+		Serial.println("Timer Ended");
+		mode = nextMode();
+		if (mode == Nothing) {
+			mode = Do;
+		}
+		doPause(UINT32_MAX, true);
+		durationAtPauseStart = 0;
+	}
 }
 
 void setup() {
@@ -135,19 +135,15 @@ void loop() {
 		handlePress();
 	}
 
-	if (timerPaused()) {
-		if (millis() - getTimerPause() > pauseDuration) {
-			unpauseTimer();
-			pauseDuration = UINT32_MAX;
-		} else {
-			animatePause();
-		}
+	/* if (millis() - lastPressed >= DOUBLE_CLICK_THRESHOLD) { */
+	/* 	if (pauseTime == 0) { */
+	/* 		displayMode(); */
+	/* 	} */
+	/* } */
+
+	if (pauseTime > 0) {
+		handlePause();
 	} else if (mode != Nothing) {
 		updateDisplay();
-		if (timerEnded()) {
-			resetTimer();
-			pauseTimer();
-			mode = (mode == Stop ? Do : Stop);
-		}
 	}
 }
