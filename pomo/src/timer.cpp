@@ -1,35 +1,35 @@
 #include <Arduino.h>
 #include "timer.h"
 
-uint32_t timerStart = 0;
-uint32_t timerPause = 0;
+uint32_t timerStartTime = 0;
+uint32_t timerPauseTime = 0;
 
 void resetTimer() {
-	timerStart = millis();
+	timerStartTime = millis();
 }
 
 void pauseTimer() {
-	timerPause = millis();
+	timerPauseTime = millis();
 }
 
 void unpauseTimer() {
-	timerStart += millis() - timerPause;
-	timerPause = 0;
+	timerStartTime += millis() - timerPauseTime;
+	timerPauseTime = 0;
 }
 
 uint32_t getTimerStart() {
-	return timerStart;
+	return timerStartTime;
 }
 
 uint32_t getTimerPause() {
-	return timerPause;
+	return timerPauseTime;
 }
 
 bool timerPaused() {
-	return timerPause == 0 ? false : true;
+	return timerPauseTime == 0 ? false : true;
 }
 
 bool timerEnded(uint32_t timerDuration) {
 	Serial.println("Timer ended");
-	return millis() - timerStart > timerDuration;
+	return millis() - timerStartTime > timerDuration;
 }

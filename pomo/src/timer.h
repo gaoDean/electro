@@ -4,7 +4,8 @@
 void resetTimer();
 void pauseTimer();
 void unpauseTimer();
-uint32_t getTimer();
+uint32_t getTimerStart();
+uint32_t getTimerPause();
 bool timerPaused();
 bool timerEnded(uint32_t);
 

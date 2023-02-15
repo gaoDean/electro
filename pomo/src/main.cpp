@@ -106,7 +106,7 @@ void updateDisplay() {
 	uint8_t numBitsToFill = 10 * (millis() - getTimerStart()) / convertToMillis(mode);
 	uint16_t bitRepresentation = pow(2, numBitsToFill) - 1;
 
-	if (millis() - lastFlash > FRAME_DELAY) {
+	if (millis() - lastFlash > FLASH_DELAY) {
 		lastFlashState = !lastFlashState;
 
 		if (lastFlashState) {
@@ -144,7 +144,7 @@ void loop() {
 		}
 	} else if (mode != Nothing) {
 		updateDisplay();
-		if (timerEnded()) {
+		if (timerEnded(convertToMillis(mode))) {
 			resetTimer();
 			pauseTimer();
 			mode = (mode == Stop ? Do : Stop);
